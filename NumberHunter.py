@@ -10,17 +10,18 @@ import datetime
 import csv
 import os
 import gc
-from twilio.rest import TwilioRestClient
+from twilio.rest import Client
 
-ACCT = os.environ['TWILIO_ACCOUNT_SID']
-AUTH = os.environ['TWILIO_AUTH_TOKEN']
+ACCT = '<ACCOUNT_SID>'
+AUTH = '<AUTH_TOKEN>'
 
 # START_AFTER_DATE will get call logs from now going back to the date defined.
 # If you have a lot of calls you may want to select a shorter time window.
-START_AFTER_DATE = raw_input("Please type in the date to start from in YYYY-MM-DD format: ")
+START_AFTER_DATE = input(
+    "Please type in the date to start from in YYYY-MM-DD format: ")
 
 # print('Getting details for Account: ' + ACCT)
-client = TwilioRestClient(ACCT, AUTH)
+client = Client(ACCT, AUTH)
 
 # Part One: Get all phone numbers for an account and write to a .csv file.
 print('Gathering Phone numbers for this account, the start time is: ' + str(
@@ -29,7 +30,7 @@ START_TIME = datetime.datetime.now()
 
 with open("TwilioNumberList.csv", "w") as csvfile:
     writer = csv.writer(csvfile, delimiter=',')
-    for number in client.phone_numbers.iter(page_size=1000):
+    for number in client.incoming_phone_numbers.list(page_size=1000):
         sid = number.sid
         number = number.phone_number.strip("+")
         writer.writerow([number, sid])
@@ -46,8 +47,7 @@ with open("TwilioCallLog.csv", "w") as csvfile:
     writer = csv.writer(csvfile, delimiter=',')
     # If the to / From is blank or is a client we can skip the writing to
     # the file as we only want phone numbers.
-    for call in client.calls.iter(page_size=1000,
-                                  started_after=START_AFTER_DATE):
+    for call in client.calls.list(start_time_after=START_AFTER_DATE, page_size=1000):
         if call.to.startswith("+"):
             writer.writerow([call.to.strip("+")])
         if call.from_.startswith("+"):
@@ -96,14 +96,22 @@ print('Script Finished running at: ' + str(datetime.datetime.now().time()))
 END_TIME = datetime.datetime.now()
 print('Total Time taken was', str(END_TIME - START_TIME))
 
+print("---------------------------------------------------")
+print("Here are your unused numbers given this date range:")
+print(UNUSED_LIST)
+
 # Part Four: Delete the Phone Numbers if the user says yes
 remove_number = input(
     "Should I delete these unused numbers from the account? Y or N: ")
 if (remove_number == 'Y') or (remove_number == 'y'):
     print('Removing unwanted numbers. This may take a while...')
-    for sid in UNUSED_LIST:
-        print('Removing ' + sid)
-        client.phone_numbers.delete(sid)
+    print(UNUSED_LIST)
+    for number in UNUSED_LIST:
+        e164_number = "+" + number
+        sid = client.incoming_phone_numbers.list(
+            phone_number=e164_number)[0].sid
+        print('Removing ' + e164_number + " (" + sid + ") from your account")
+        client.incoming_phone_numbers(sid).delete()
     print('Finished removing unused numbers')
 else:
     print("Did not remove any numbers")
